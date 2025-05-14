@@ -3,19 +3,19 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 # Grid and Time Discretization
-T = 1000    # Total simulation time
-dx = 4.0
-dt = 0.4
-x = np.arange(0, 400+dx, dx)
-t = np.arange(0, T+dt, dt)
-nx, nt = len(x), len(t)
+nt = 5000  # Number of time steps
+nx = 100   # Number of spatial points
+T = 400    # Total simulation time
+dx = 150 / (nx + 1)
+dt = T / (nt + 1)
 
 # CFL Condition for Stability
 if dt > dx:
     raise ValueError("CFL condition violated: Decrease dt or increase dx.")
 
 # Spatial and Time Grids
-
+x = np.linspace(0, 150, nx)
+t = np.linspace(0, T, nt)
 # Initialize Fields
 phi = np.zeros((nx, nt), dtype=complex)
 pi = np.zeros((nx, nt), dtype=complex)
@@ -24,28 +24,27 @@ pi = np.zeros((nx, nt), dtype=complex)
 phi[:, 0] = 0.001 * np.exp(-0.5 * (x / 10)**2)
 pi[:, 0] = np.zeros_like(phi[:, 0])
 def koterm(v, dx=dx):
-    term = np.zeros_like(v)
-    nx = len(v)
-
-    # Extend v with 2 ghost points at the left
-    v_ext = np.concatenate(([v[1], v[0]], v))  # ghost points: v[-2]=v[1], v[-1]=v[0]
-
-    # Compute term from i = 0 to nx-1
-    for i in range(nx):
-        i_ext = i + 2  # shift index due to ghost points at start
-        if i >= 2 and i <= nx - 3:
-            # Standard 5-point stencil
-            term[i] = (v_ext[i_ext+2] - 4*v_ext[i_ext+1] + 6*v_ext[i_ext] - 4*v_ext[i_ext-1] + v_ext[i_ext-2]) / dx
-        elif i == 0:
-            # Approximate using ghost points: i-2 and i-1 refer to v_ext[0] and v_ext[1]
-            term[i] = (v_ext[i_ext+2] - 4*v_ext[i_ext+1] + 6*v_ext[i_ext] - 4*v_ext[i_ext-1] + v_ext[i_ext-2]) / dx
-        elif i == 1:
-            term[i] = (v_ext[i_ext+2] - 4*v_ext[i_ext+1] + 6*v_ext[i_ext] - 4*v_ext[i_ext-1] + v_ext[i_ext-2]) / dx
-        else:  # i >= nx-2, use reduced stencil (same as before)
-            term[i] = (v[i] - v[i-1]) / dx  # fallback to first-order difference if needed
-
-    return -1 * term * (0.2 / 16)
-
+            term = np.zeros_like(v)
+            for index in range(2,nx-1):
+                right=index+1
+                right1=index+2
+                left=index-1
+                left1=index-2
+                if not (1<index<(nx-2)):
+                    if(index==1):
+                        left1=index
+                    elif(index==0):
+                        left=index+1
+                        left1=index+2
+                    elif(index==(nx-2)):
+                        right1=index
+                    elif(index==(nx-1)):
+                        right=index-1
+                        right1=index-2
+                term[index] = (v[right1] - 4*v[right] + 6*v[index] - 4*v[left] + v[left1]) / (dx**4)
+                term[:2]=term[2]
+                term[-2:]=term[-3]
+            return -1*term * (0.02 / 16)*dx**3
 
 def laplacian(phi, dx=dx):
     phidash = np.zeros_like(phi, dtype=complex)
@@ -62,7 +61,7 @@ def laplacian(phi, dx=dx):
 
 def delr(v, dx=dx):
     derivative = np.zeros_like(v)
-    for index in range(1, nx - 1):
+    for index in range(1, nx - 2):
         derivative[index] = (v[index+1] - v[index-1]) / (2 * dx)
     derivative[0] = (-3 * v[0] + 4 * v[1] - v[2]) / (2 * dx)
     derivative[-1] = (3 * v[-1] - 4 * v[-2] + v[-3]) / (2 * dx)
@@ -91,8 +90,8 @@ def rhs(pi, phi):
 
     dpidt = laplacian(phi) * (alpha / a)**2 + (delr(alpha) * a - delr(a) * alpha) * delr(phi) / (a**2) 
     dpidt[-1]= 1*(-3*pi[-1]+4*pi[-2]-pi[-3])/(2*dx)
-    dpidt=dpidt +koterm(pi)
-    dphidt = pi * (alpha / a) +koterm(phi)
+    dpidt=dpidt+koterm(phi)
+    dphidt = pi * (alpha / a) +koterm(pi)
     return np.array([dpidt, dphidt])
 
 # Time Evolution Using 2nd Order Runge-Kutta Method (RK2)
@@ -117,8 +116,8 @@ for i in range(nt - 1):
 fig, ax = plt.subplots()
 line_real, = ax.plot(x, np.real(phi[:, 0]), color="blue", label="Re(phi)")
 line_imag, = ax.plot(x, np.imag(phi[:, 0]), color="red", label="Im(phi)")
-ax.set_xlim(0, 400)
-ax.set_ylim(-0.0002, 0.0002)
+ax.set_xlim(0, 150)
+ax.set_ylim(-0.001, 0.001)
 ax.set_xlabel("x")
 ax.set_ylabel("phi")
 ax.set_title("Wave Equation Solution")
@@ -131,6 +130,6 @@ def update(frame):
     return line_real, line_imag
 
 # Animation
-ani = FuncAnimation(fig, update, interval=100, frames=range(0, len(t), 50), repeat_delay=10000)
+ani = FuncAnimation(fig, update, interval=10, frames=range(0, len(t), 6), repeat_delay=10000)
 plt.show()
-#ani.save("spherical_gr_choptuik.mp4")
+#ani.save("spherical_rk2_sommeerfield.mp4")

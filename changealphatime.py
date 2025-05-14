@@ -5,7 +5,7 @@ from matplotlib.animation import FuncAnimation
 # Grid and Time Discretization
 T = 1000    # Total simulation time
 dx = 4.0
-dt = 0.4
+dt = 0.1
 x = np.arange(0, 400+dx, dx)
 t = np.arange(0, T+dt, dt)
 nx, nt = len(x), len(t)
@@ -25,27 +25,11 @@ phi[:, 0] = 0.001 * np.exp(-0.5 * (x / 10)**2)
 pi[:, 0] = np.zeros_like(phi[:, 0])
 def koterm(v, dx=dx):
     term = np.zeros_like(v)
-    nx = len(v)
-
-    # Extend v with 2 ghost points at the left
-    v_ext = np.concatenate(([v[1], v[0]], v))  # ghost points: v[-2]=v[1], v[-1]=v[0]
-
-    # Compute term from i = 0 to nx-1
-    for i in range(nx):
-        i_ext = i + 2  # shift index due to ghost points at start
-        if i >= 2 and i <= nx - 3:
-            # Standard 5-point stencil
-            term[i] = (v_ext[i_ext+2] - 4*v_ext[i_ext+1] + 6*v_ext[i_ext] - 4*v_ext[i_ext-1] + v_ext[i_ext-2]) / dx
-        elif i == 0:
-            # Approximate using ghost points: i-2 and i-1 refer to v_ext[0] and v_ext[1]
-            term[i] = (v_ext[i_ext+2] - 4*v_ext[i_ext+1] + 6*v_ext[i_ext] - 4*v_ext[i_ext-1] + v_ext[i_ext-2]) / dx
-        elif i == 1:
-            term[i] = (v_ext[i_ext+2] - 4*v_ext[i_ext+1] + 6*v_ext[i_ext] - 4*v_ext[i_ext-1] + v_ext[i_ext-2]) / dx
-        else:  # i >= nx-2, use reduced stencil (same as before)
-            term[i] = (v[i] - v[i-1]) / dx  # fallback to first-order difference if needed
-
-    return -1 * term * (0.2 / 16)
-
+    for index in range(2, nx - 2):  # Avoid boundary regions
+        term[index] = (v[index+2] - 4*v[index+1] + 6*v[index] - 4*v[index-1] + v[index-2]) / dx
+    term[:2]=term[2]
+    term[-2:]=term[-3]
+    return -1*term * (0.02 / 16)
 
 def laplacian(phi, dx=dx):
     phidash = np.zeros_like(phi, dtype=complex)
@@ -77,36 +61,38 @@ def rhs2(a, alpha, vpi, vphidash, i):
         dalphadt = 0
     return np.array([dadt, dalphadt])
 
-def rhs(pi, phi):
-    a = np.zeros_like(x)
-    alpha = np.zeros_like(x)
-    a[0] = 1
-    alpha[0] = 1
-
-    for i in range(nx - 1):
-        k1v = rhs2(a[i], alpha[i], pi[i], delr(phi)[i], i)
-        k2v = rhs2(a[i] + k1v[0] * dx, alpha[i] + k1v[1] * dx, pi[i+1], delr(phi)[i+1], i+1)
-        a[i + 1] = a[i] + 0.5 * (k1v[0] + k2v[0]) * dx
-        alpha[i + 1] = alpha[i] + 0.5 * (k1v[1] + k2v[1]) * dx
+def rhs(pi, phi,a,alpha):
+    
 
     dpidt = laplacian(phi) * (alpha / a)**2 + (delr(alpha) * a - delr(a) * alpha) * delr(phi) / (a**2) 
     dpidt[-1]= 1*(-3*pi[-1]+4*pi[-2]-pi[-3])/(2*dx)
     dpidt=dpidt +koterm(pi)
-    dphidt = pi * (alpha / a) +koterm(phi)
+    dphidt = pi * (alpha / a) + koterm(phi)
     return np.array([dpidt, dphidt])
 
 # Time Evolution Using 2nd Order Runge-Kutta Method (RK2)
 
 for i in range(nt - 1):
     # Stage 1
-    k1 = rhs(pi[:, i], phi[:, i])
+    a = np.zeros_like(x)
+    alpha = np.zeros_like(x)
+    a[0] = 1
+    alpha[0] = 1
+
+    for j in range(nx - 1):
+        k1v = rhs2(a[j], alpha[j], pi[j,i], delr(phi[:,i])[j], j)
+        k2v = rhs2(a[j] + k1v[0] * dx, alpha[j] + k1v[1] * dx, pi[j+1,i], delr(phi[:,i])[j+1], j+1)
+        a[j + 1] = a[j] + 0.5 * (k1v[0] + k2v[0]) * dx
+        alpha[j + 1] = alpha[j] + 0.5 * (k1v[1] + k2v[1]) * dx
+
+    k1 = rhs(pi[:, i], phi[:, i],a,alpha)
     
     # Intermediate state
     pi_half = pi[:, i] + dt * k1[0]
     phi_half = phi[:, i] + dt * k1[1]
     
     # Stage 2
-    k2 = rhs(pi_half, phi_half)
+    k2 = rhs(pi_half, phi_half,a,alpha)
     
     # Full RK2 update
     pi[:, i+1] = pi[:, i] + (dt/2) *(k1[0]+k2[0])
@@ -133,4 +119,4 @@ def update(frame):
 # Animation
 ani = FuncAnimation(fig, update, interval=100, frames=range(0, len(t), 50), repeat_delay=10000)
 plt.show()
-#ani.save("spherical_gr_choptuik.mp4")
+#ani.save("spherical_rk2_sommeerfield.mp4")

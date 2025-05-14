@@ -96,4 +96,3 @@ def update(frame):
 # Animation
 ani = FuncAnimation(fig, update, interval=10, frames=range(0, len(t), 6), repeat_delay=10000)
 plt.show()
-ani.save("spherical_rk1.mp4")

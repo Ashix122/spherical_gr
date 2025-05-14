@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 
-def wave_solver(dx, dt, T=1000):
+def wave_solver(dx, dt, T=400):
     x = np.arange(0, 400+dx, dx)
     t = np.arange(0, T+dt, dt)
     nx, nt = len(x), len(t)
@@ -32,7 +32,7 @@ def wave_solver(dx, dt, T=1000):
 
     def delr(v):
         derivative = np.zeros_like(v)
-        for index in range(1, nx - 1):
+        for index in range(1, nx - 2):
             derivative[index] = (v[index + 1] - v[index - 1]) / (2 * dx)
         derivative[0] = (-3 * v[0] + 4 * v[1] - v[2]) / (2 * dx)
         derivative[-1] = (3 * v[-1] - 4 * v[-2] + v[-3]) / (2 * dx)
@@ -48,27 +48,13 @@ def wave_solver(dx, dt, T=1000):
         return np.array([dadt, dalphadt])
     
     def koterm(v, dx=dx):
+
         term = np.zeros_like(v)
-        nx = len(v)
-
-        # Extend v with 2 ghost points at the left
-        v_ext = np.concatenate(([v[1], v[0]], v))  # ghost points: v[-2]=v[1], v[-1]=v[0]
-
-        # Compute term from i = 0 to nx-1
-        for i in range(nx):
-            i_ext = i + 2  # shift index due to ghost points at start
-            if i >= 2 and i <= nx - 3:
-                # Standard 5-point stencil
-                term[i] = (v_ext[i_ext+2] - 4*v_ext[i_ext+1] + 6*v_ext[i_ext] - 4*v_ext[i_ext-1] + v_ext[i_ext-2]) / dx
-            elif i == 0:
-                # Approximate using ghost points: i-2 and i-1 refer to v_ext[0] and v_ext[1]
-                term[i] = (v_ext[i_ext+2] - 4*v_ext[i_ext+1] + 6*v_ext[i_ext] - 4*v_ext[i_ext-1] + v_ext[i_ext-2]) / dx
-            elif i == 1:
-                term[i] = (v_ext[i_ext+2] - 4*v_ext[i_ext+1] + 6*v_ext[i_ext] - 4*v_ext[i_ext-1] + v_ext[i_ext-2]) / dx
-            else:  # i >= nx-2, use reduced stencil (same as before)
-                term[i] = (v[i] - v[i-1]) / dx  # fallback to first-order difference if needed
-
-        return -1 * term * (2 / 16)
+        for index in range(2, nx - 2):  # Avoid boundary regions
+            term[index] = (v[index+2] - 4*v[index+1] + 6*v[index] - 4*v[index-1] + v[index-2]) / dx
+        term[:2]=term[2]
+        term[-2:]=term[-3]
+        return -1*term * (0.02 / 16)
 
     def rhs(pi, phi,a,alpha):
 
@@ -82,16 +68,10 @@ def wave_solver(dx, dt, T=1000):
     # Time Evolution Using 2nd Order Runge-Kutta Method (RK2)
     for i in range(nt - 1):
     # Stage 1
-        a = np.zeros_like(x)
-        alpha = np.zeros_like(x)
+        a = np.ones_like(x)
+        alpha = np.ones_like(x)
         a[0] = 1
         alpha[0] = 1
-
-        for j in range(nx - 1):
-            k1v = rhs2(a[j], alpha[j], pi[j,i], delr(phi[:,i])[j], j)
-            k2v = rhs2(a[j] + k1v[0] * dx, alpha[j] + k1v[1] * dx, pi[j+1,i], delr(phi[:,i])[j+1], j+1)
-            a[j + 1] = a[j] + 0.5 * (k1v[0] + k2v[0]) * dx
-            alpha[j + 1] = alpha[j] + 0.5 * (k1v[1] + k2v[1]) * dx
 
         k1 = rhs(pi[:, i], phi[:, i],a,alpha)
     
@@ -147,15 +127,15 @@ def point_plot(store, store2, store3, x,t,typer):
     ax.legend()
     
     def update(frame):
-        line_real.set_ydata(store[:, frame])
-        line_imag.set_ydata(store2[:, frame])
-        line3.set_ydata(store3[:, frame])
+        line_real.set_ydata(store[1:, frame])
+        line_imag.set_ydata(store2[1:, frame])
+        line3.set_ydata(store3[1:, frame])
         ax.set_title(f"Wave Equation Solution at t={t[frame]:.4f}")
         return line_real, line_imag, line3
     
     ani = FuncAnimation(fig, update, interval=50, frames=len(t), repeat_delay=10000)
     plt.show()
-    #ani.save("pointwise_self_1_250.mp4")
+    ani.save("pointwise_self_consta.mp4")
 
 def exact_solution(dx, dt,T=10):
     x = np.arange(0, 1 + dx, dx)
@@ -235,7 +215,7 @@ def compute_norm_self(dx, dt):
     plt.ylabel("Norm Convergence Factor")
     plt.title("Norm Self Convergence")
     plt.legend()
-    plt.savefig("NormSelf_new.png")
+    plt.savefig("NormSelf_consta.png")
 def compute_pointwise_exact(dx,dt):   
 
     x, t, phi_num = wave_solver(dx, dt)
@@ -255,8 +235,8 @@ def compute_pointwise_exact(dx,dt):
     point_plot(store, store2, store3, x, t,"exact")
 
 
-#compute_pointwise_self(dx=10.0, dt=1.0)   
-compute_norm_self(dx=10.0,dt=1.0)
+#compute_pointwise_self(dx=5.0, dt=1.0)   
+compute_norm_self(dx=4.0,dt=1.0)
 #compute_norm_exact(1,0.1)
 #compute_pointwise_exact(0.01,0.01)
 
