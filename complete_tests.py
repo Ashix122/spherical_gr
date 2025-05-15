@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-
+from numba import njit
 
 def wave_solver(dx, dt, T=1000):
     x = np.arange(0, 400+dx, dx)
@@ -11,14 +11,14 @@ def wave_solver(dx, dt, T=1000):
     if dt > dx:
         raise ValueError("CFL condition violated: Decrease dt or increase dx.")
     
-    phi = np.zeros((nx, nt), dtype=complex)
-    pi = np.zeros((nx, nt), dtype=complex)
+    phi = np.zeros((nx, nt), dtype=np.complex128)
+    pi = np.zeros((nx, nt), dtype=np.complex128)
     
     phi[:, 0] = 0.001 * np.exp(-0.5 * (x / 10)**2)
     pi[:, 0] = np.zeros_like(phi[:, 0])
-
+    
     def laplacian(phi):
-        phidash = np.zeros_like(phi, dtype=complex)
+        phidash = np.zeros_like(phi, dtype=np.complex128)
         for index in range(nx):
             left = index - 1
             right = index + 1
@@ -29,7 +29,7 @@ def wave_solver(dx, dt, T=1000):
             else:
                 phidash[index] = (phi[right] - 2 * phi[index] + phi[left]) / dx**2 + (2 / x[index]) * (phi[right] - phi[left]) / (2 * dx)
         return phidash
-
+    
     def delr(v):
         derivative = np.zeros_like(v)
         for index in range(1, nx - 1):
@@ -37,7 +37,7 @@ def wave_solver(dx, dt, T=1000):
         derivative[0] = (-3 * v[0] + 4 * v[1] - v[2]) / (2 * dx)
         derivative[-1] = (3 * v[-1] - 4 * v[-2] + v[-3]) / (2 * dx)
         return derivative
-
+    
     def rhs2(a, alpha, vpi, vphidash, i):
         if i != 0:
             dadt = a * (-((a**2) - 1) / (2 * x[i]) + 2 * np.pi * x[i] * (vpi**2 + vphidash**2))
@@ -109,6 +109,7 @@ def wave_solver(dx, dt, T=1000):
     return x, t, phi
 
 
+
 def compute_pointwise_self(dx, dt):
     x, t, phi_num = wave_solver(dx, dt)
     x_fine, t_fine, phi_num_fine = wave_solver(dx/2, dt/2)
@@ -161,7 +162,7 @@ def exact_solution(dx, dt,T=10):
     x = np.arange(0, 1 + dx, dx)
     t = np.arange(0, T + dt, dt)
     nx, nt = len(x), len(t)
-    phi = np.zeros((nx, nt), dtype=complex)
+    phi = np.zeros((nx, nt), dtype=np.complex128)
 
     for i in range(nx):
         for j in range(nt):
@@ -255,8 +256,8 @@ def compute_pointwise_exact(dx,dt):
     point_plot(store, store2, store3, x, t,"exact")
 
 
-#compute_pointwise_self(dx=10.0, dt=1.0)   
-compute_norm_self(dx=10.0,dt=1.0)
+compute_pointwise_self(dx=10.0, dt=1.0)   
+#compute_norm_self(dx=10.0,dt=1.0)
 #compute_norm_exact(1,0.1)
 #compute_pointwise_exact(0.01,0.01)
 
