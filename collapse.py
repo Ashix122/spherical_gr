@@ -51,8 +51,8 @@ def plotphi0(p):
     plt.plot(t[:int(200/0.1)],phi[0,:int(200/0.1)])
     plt.xlabel("t")
     plt.ylabel("phi")
-    plt.title(f"Phi at origin with p={p:.20f}")
-    #plt.savefig("BG-Subcritical.png")
+    plt.title(f"Phi at origin with p={p:.16f}")
+    plt.savefig("BG_withhighKO.png")
     plt.show()
     
 
@@ -60,18 +60,18 @@ def digitsearch(a,g):
     for i in range(1,11):
       bmin=a+(i-1)*(10**(-g))
       b=a+(i)*(10**(-g))
-      if g==20:
+      if g==17:
         return a
       if(blkholbm(b)):
           return digitsearch(bmin,g+1)
       else:
-          print("not",b)
-p=0.337886320292746 
-#p=0.33788632029
-#print(blkhol2(0.001))
+          print(f"not {b:.16f}")
+p=0.001
+#p=0.3407818470201690
+#p=0.3407818470
 #print("Final value=",np.round(binarysearch(0.001,1),decimals=10))
 animate_wave(*wave_solver(dx=1.0, dt=0.1,p=p)[:3],p=p)
-#plotphi0(digitsearch(p,17))
-
-
-
+#plotphi0(p)
+#fp=digitsearch(p,11)
+#print(f"Final value={fp:.16f}")
+#plotphi0(fp)
